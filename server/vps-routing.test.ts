@@ -22,7 +22,7 @@ import type { RoutineSchedule } from "../shared/routines.ts";
 
 const SERVER_DIR = dirname(fileURLToPath(import.meta.url));
 const FAKE_CLI = join(SERVER_DIR, "testing", "fake-acp-cli.ts");
-const PORT = 18800 + Math.floor(Math.random() * 10_000);
+const PORT = workerPort(18800, 10_000);
 const BASE = `http://127.0.0.1:${PORT}`;
 const IMAGE_ID = `sha256:${"a".repeat(64)}`;
 const CONTAINER_ID = "b".repeat(64);
@@ -202,6 +202,7 @@ posixOnly("VPS turn routing e2e (fake ACP fleet + fake docker over SSH)", () => 
     // Only the viewer's local listening socket is simulated; no SSH network or real VPS is contacted.
     writeFileSync(join(fakeBin, "ssh"), `#!${process.execPath}
 import { createServer } from 'node:net';
+import { workerPort } from "./testing/worker-port.ts";
 const args = process.argv.slice(2);
 const forward = args[args.indexOf('-L') + 1];
 const port = Number(forward.split(':')[1]);
