@@ -1,8 +1,8 @@
-# Never merged: benchmarks for CI speed changes on a branch nothing else watches, one job at a time.
+# Never merged: Linux's whole suite in one process on one Boat VM, side by side. One Boat start.
 name: CI speed bench
 on:
   push:
-    branches: ["ci/speed-bench*"]
+    branches: ["ci/speed-bench-boat"]
 permissions:
   contents: read
 concurrency:
@@ -11,21 +11,14 @@ concurrency:
 jobs:
   bench:
     name: ${{ matrix.name }}
-    runs-on: ubuntu-latest
+    runs-on: boat-xlarge
     timeout-minutes: 45
     strategy:
       fail-fast: false
       max-parallel: 1
       matrix:
         include:
-          - { name: w4-pass1-shard1, args: "--shard=1/8 --fileParallelism --maxWorkers=4" }
-          - { name: w4-pass1-shard2, args: "--shard=2/8 --fileParallelism --maxWorkers=4" }
-          - { name: w4-pass1-shard3, args: "--shard=3/8 --fileParallelism --maxWorkers=4" }
-          - { name: w4-pass1-shard4, args: "--shard=4/8 --fileParallelism --maxWorkers=4" }
-          - { name: w4-pass1-shard5, args: "--shard=5/8 --fileParallelism --maxWorkers=4" }
-          - { name: w4-pass1-shard6, args: "--shard=6/8 --fileParallelism --maxWorkers=4" }
-          - { name: w4-pass1-shard7, args: "--shard=7/8 --fileParallelism --maxWorkers=4" }
-          - { name: w4-pass1-shard8, args: "--shard=8/8 --fileParallelism --maxWorkers=4" }
+          - { name: boat-xlarge-w16, args: "--fileParallelism --maxWorkers=16" }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -34,14 +27,19 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
-          cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Remove what Boat installs and GitHub's runners lack
+        run: sudo rm -f /usr/bin/bwrap /usr/local/bin/{agent,claude,codex,cua-driver,cursor-agent,hermes,hermes-acp,hermes-agent,kimi,openclaw,opencode,pi,prime-agent,vibe,vibe-acp}
       - run: node --input-type=commonjs -e "require('electron')"
       - name: Machine
-        run: nproc; free -m; node -v; cat /proc/sys/net/ipv4/ip_local_port_range
+        run: nproc; free -m; node -v; cat /proc/sys/net/ipv4/ip_local_port_range; id
       - name: Run
         env:
           OMB_VITEST_RETRY_LOG: ${{ runner.temp }}/vitest-retries.jsonl
           OMB_VITEST_E2E: all
           OMB_VITEST_SUBSET: ""
+          LANG: C.UTF-8
+          LC_ALL: C.UTF-8
+          TZ: UTC
+        shell: setpriv --inh-caps=-all --ambient-caps=-all -- env -u DISPLAY -u XAUTHORITY bash --noprofile --norc -eo pipefail {0}
         run: .github/bench/run.sh ${{ matrix.name }} pnpm exec vitest run ${{ matrix.args }} --reporter=default --reporter=github-actions
