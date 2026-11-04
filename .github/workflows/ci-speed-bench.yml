@@ -1,0 +1,47 @@
+# Never merged: benchmarks for CI speed changes on a branch nothing else watches, one job at a time.
+name: CI speed bench
+on:
+  push:
+    branches: ["ci/speed-bench*"]
+permissions:
+  contents: read
+concurrency:
+  group: ci-speed-bench-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  bench:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        include:
+          - { name: w4-pass1-shard1, args: "--shard=1/8 --fileParallelism --maxWorkers=4" }
+          - { name: w4-pass1-shard2, args: "--shard=2/8 --fileParallelism --maxWorkers=4" }
+          - { name: w4-pass1-shard3, args: "--shard=3/8 --fileParallelism --maxWorkers=4" }
+          - { name: w4-pass1-shard4, args: "--shard=4/8 --fileParallelism --maxWorkers=4" }
+          - { name: w4-pass1-shard5, args: "--shard=5/8 --fileParallelism --maxWorkers=4" }
+          - { name: w4-pass1-shard6, args: "--shard=6/8 --fileParallelism --maxWorkers=4" }
+          - { name: w4-pass1-shard7, args: "--shard=7/8 --fileParallelism --maxWorkers=4" }
+          - { name: w4-pass1-shard8, args: "--shard=8/8 --fileParallelism --maxWorkers=4" }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ff378ebe6b225b0680b81c1ad4498ae0d1d3a5e3 # v6.0.10
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: node --input-type=commonjs -e "require('electron')"
+      - name: Machine
+        run: nproc; free -m; node -v; cat /proc/sys/net/ipv4/ip_local_port_range
+      - name: Run
+        env:
+          OMB_VITEST_RETRY_LOG: ${{ runner.temp }}/vitest-retries.jsonl
+          OMB_VITEST_E2E: all
+          OMB_VITEST_SUBSET: ""
+        run: .github/bench/run.sh ${{ matrix.name }} pnpm exec vitest run ${{ matrix.args }} --reporter=default --reporter=github-actions
